@@ -1,15 +1,21 @@
 class LinkedInAssistant {
   constructor(options = {}) {
+    // Default configuration with human-like timing variations
     this.settings = {
+      // Variable wait times with wider ranges to mimic human behavior
       interactionDelayMin: 1800 + Math.floor(Math.random() * 1000),
       interactionDelayMax: 4500 + Math.floor(Math.random() * 1500),
       scrollDelayMin: 1400 + Math.floor(Math.random() * 800),
       scrollDelayMax: 3200 + Math.floor(Math.random() * 1200),
       pageTransitionDelayMin: 4800 + Math.floor(Math.random() * 2000),
       pageTransitionDelayMax: 8400 + Math.floor(Math.random() * 3000),
-      maxConnectionRequests: options.maxConnectionRequests || -1,
+
+      // Connection settings
+      maxConnectionRequests: options.maxConnectionRequests || -1, // -1 means unlimited
       sentConnectionRequests: 0,
-      addPersonalizedNote: options.addPersonalizedNote ?? Math.random() > 0.4,
+      addPersonalizedNote: options.addPersonalizedNote ?? Math.random() > 0.4, // Randomize by default
+
+      // Message templates (multiple variations for natural appearance)
       connectionNotes: options.connectionNotes || [
         "Hi {{firstName}}, I noticed we're in the same industry and thought we could connect.",
         "Hey {{firstName}}, I came across your profile and would love to add you to my professional network.",
@@ -17,51 +23,38 @@ class LinkedInAssistant {
         "Hi {{firstName}}, I'm interested in your work at {{company}} and would like to connect.",
         "Hello {{firstName}}, I see we share some mutual connections. I'd like to connect directly.",
       ],
+
+      // Advanced options
       mouseMovementSimulation: options.mouseMovementSimulation ?? true,
       randomScrollVariations: options.randomScrollVariations ?? true,
-      sessionMaxTime: options.sessionMaxTime || 45 * 60 * 1000,
+      sessionMaxTime: options.sessionMaxTime || 45 * 60 * 1000, // 45 minutes default
       takeMicroBreaks: options.takeMicroBreaks ?? true,
+
+      // Detection avoidance
       useObfuscatedSelectors: true,
       varyClickPatterns: true,
       mimicHumanTypingSpeed: true,
-      adaptivityLevel: options.adaptivityLevel || 0.7,
-      learningRate: options.learningRate || 0.05,
-      patternRecognition: options.patternRecognition ?? true,
-      avoidanceBehavior: true,
-      naturalPageNavigation: true,
     };
 
+    // Internal state tracking
     this._state = {
       currentPageItems: [],
       currentItemIndex: 0,
       profileNames: [],
       profileCompanies: [],
-      profileIndustries: [],
-      profileTitles: [],
       sessionStartTime: Date.now(),
       microBreaksTaken: 0,
       lastActivityTimestamp: Date.now(),
       operationInProgress: false,
       currentPageNumber: 1,
       mousePosition: { x: 0, y: 0 },
-      successRates: {},
-      detectionRiskFactors: {},
-      adaptiveTimings: {
-        lastDelays: [],
-        successPattern: [],
-      },
-      sessionMetrics: {
-        attempts: 0,
-        successes: 0,
-        failures: 0,
-        skipped: 0,
-      },
-      patternMemory: new Map(),
     };
 
+    // Bind methods to maintain context
     this._boundMethods();
+
+    // Initialize mutation observer for dynamic content
     this._initMutationObserver();
-    this._initAdaptiveLearning();
   }
 
   _boundMethods() {
@@ -72,153 +65,86 @@ class LinkedInAssistant {
   }
 
   _initMutationObserver() {
-    this.observer = new MutationObserver((mutations) => {
-      if (!this._state.operationInProgress) return;
-
-      const relevantChanges = mutations.some((mutation) =>
-        Array.from(mutation.addedNodes).some((node) => {
-          if (node.nodeType !== Node.ELEMENT_NODE) return false;
-          return (
-            node.querySelector &&
-            (node.querySelector('div[role="dialog"]') ||
-              node.matches('div[role="dialog"]'))
-          );
-        })
-      );
-
-      if (relevantChanges) {
-        setTimeout(
-          () => this._processDialogElements(),
-          this._getRandomDelay(500, 1200)
-        );
-      }
-    });
-
+    // Monitor DOM changes to detect LinkedIn's dynamic content updates
+    this.observer = new MutationObserver(this._handleDOMChanges.bind(this));
     this.observer.observe(document.body, {
       childList: true,
       subtree: true,
     });
   }
 
-  _initAdaptiveLearning() {
-    this._state.adaptiveTimings = {
-      interactionDelay: {
-        current:
-          (this.settings.interactionDelayMin +
-            this.settings.interactionDelayMax) /
-          2,
-        history: [],
-        successRate: 0.5,
-      },
-      scrollDelay: {
-        current:
-          (this.settings.scrollDelayMin + this.settings.scrollDelayMax) / 2,
-        history: [],
-        successRate: 0.5,
-      },
-      pageTransitionDelay: {
-        current:
-          (this.settings.pageTransitionDelayMin +
-            this.settings.pageTransitionDelayMax) /
-          2,
-        history: [],
-        successRate: 0.5,
-      },
-    };
-  }
+  _handleDOMChanges(mutations) {
+    // Only process relevant mutations when in certain states
+    if (!this._state.operationInProgress) return;
 
-  _updateAdaptiveTimings(type, success) {
-    if (!this.settings.patternRecognition) return;
+    // Check for specific LinkedIn elements appearing/changing
+    const relevantChanges = mutations.some((mutation) => {
+      // Look for connection modal or success feedback elements
+      return Array.from(mutation.addedNodes).some((node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) return false;
 
-    const timing = this._state.adaptiveTimings[type];
-    if (!timing) return;
+        // Check for connection dialog or status changes
+        const isConnectionDialog =
+          node.querySelector &&
+          (node.querySelector('div[role="dialog"]') ||
+            node.matches('div[role="dialog"]'));
 
-    timing.history.push({
-      value: timing.current,
-      success,
-      timestamp: Date.now(),
+        return isConnectionDialog;
+      });
     });
 
-    if (timing.history.length > 10) {
-      timing.history.shift();
-    }
-
-    // Calculate success rate from recent history
-    const recentEntries = timing.history.slice(-5);
-    const successCount = recentEntries.filter((entry) => entry.success).length;
-    timing.successRate = successCount / recentEntries.length;
-
-    // Adjust timing based on success rate
-    if (timing.successRate < 0.4) {
-      // Slower if failing
-      timing.current *= 1 + this.settings.learningRate;
-    } else if (timing.successRate > 0.8) {
-      // Faster if successful
-      timing.current *= 1 - this.settings.learningRate * 0.5;
-    }
-
-    // Keep within bounds
-    const minKey = `${type}Min`;
-    const maxKey = `${type}Max`;
-
-    if (this.settings[minKey] && timing.current < this.settings[minKey]) {
-      timing.current = this.settings[minKey];
-    } else if (
-      this.settings[maxKey] &&
-      timing.current > this.settings[maxKey]
-    ) {
-      timing.current = this.settings[maxKey];
+    if (relevantChanges) {
+      // Handle newly appeared elements after a short delay
+      setTimeout(
+        () => this._processDialogElements(),
+        this._getRandomDelay(500, 1200)
+      );
     }
   }
 
+  /**
+   * Generate a random delay within specified range
+   */
   _getRandomDelay(min, max) {
+    // Add slight variation for unpredictability
     const baseDelay = Math.floor(Math.random() * (max - min + 1)) + min;
     const variation = Math.floor(Math.random() * (baseDelay * 0.1));
     return baseDelay + (Math.random() > 0.5 ? variation : -variation);
   }
 
-  _getAdaptiveDelay(type) {
-    if (!this.settings.patternRecognition) {
-      return this._getRandomDelay(
-        this.settings[`${type}Min`] || 500,
-        this.settings[`${type}Max`] || 2000
-      );
-    }
-
-    const timing = this._state.adaptiveTimings[type];
-    if (!timing) {
-      return this._getRandomDelay(1000, 3000);
-    }
-
-    // Add human-like variation
-    const variation = timing.current * 0.2;
-    return timing.current + (Math.random() * variation * 2 - variation);
-  }
-
+  /**
+   * Generate realistic mouse movement
+   */
   async _moveMouseRealisticly(targetElement) {
-    if (
-      !this.settings.mouseMovementSimulation ||
-      !targetElement ||
-      !targetElement.getBoundingClientRect
-    )
-      return;
+    if (!this.settings.mouseMovementSimulation) return;
+
+    // Only enabled in environments that support this (not all browsers)
+    if (!targetElement || !targetElement.getBoundingClientRect) return;
 
     try {
       const rect = targetElement.getBoundingClientRect();
       const targetX = rect.left + rect.width / 2 + (Math.random() * 10 - 5);
       const targetY = rect.top + rect.height / 2 + (Math.random() * 10 - 5);
+
+      // Starting position (current mouse position or a reasonable default)
       const startX = this._state.mousePosition.x || window.innerWidth / 2;
       const startY = this._state.mousePosition.y || window.innerHeight / 2;
+
+      // Bezier curve control points for natural mouse movement
       const cp1x = startX + (targetX - startX) * (0.2 + Math.random() * 0.2);
       const cp1y = startY + (targetY - startY) * (0.4 + Math.random() * 0.2);
       const cp2x = startX + (targetX - startX) * (0.8 - Math.random() * 0.2);
       const cp2y = startY + (targetY - startY) * (0.8 - Math.random() * 0.2);
+
+      // Create points along the curve for movement
       const points = [];
       const steps = 12 + Math.floor(Math.random() * 8);
 
       for (let i = 0; i <= steps; i++) {
         const t = i / steps;
         const u = 1 - t;
+
+        // Cubic Bezier formula
         const x =
           u * u * u * startX +
           3 * u * u * t * cp1x +
@@ -229,115 +155,116 @@ class LinkedInAssistant {
           3 * u * u * t * cp1y +
           3 * u * t * t * cp2y +
           t * t * t * targetY;
+
         points.push({ x, y });
       }
 
+      // Move along the path with natural timing
       for (const point of points) {
         this._state.mousePosition = point;
+        // In a real implementation, we would dispatch mouse events
+        // But we'll simulate this by updating state and adding delays
         await this._microDelay(8 + Math.random() * 25);
       }
 
+      // Add a small pause before clicking, like a human would
       await this._microDelay(200 + Math.random() * 300);
-    } catch (e) {}
+    } catch (e) {
+      // Fail silently if mouse movement simulation encounters an error
+    }
   }
 
   async _microDelay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Simulates realistic typing for personalized notes
+   */
   async _simulateTyping(element, text) {
     if (!element || !this.settings.mimicHumanTypingSpeed) {
+      // Fallback to direct assignment if typing simulation not enabled
       element.value = text;
       element.dispatchEvent(new Event("input", { bubbles: true }));
       return;
     }
 
     element.focus();
+    // Clear any existing value if needed
     if (element.value) {
       element.value = "";
       element.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
-    // Context-aware typing that considers word complexity
-    const words = text.split(/\s+/);
-    let position = 0;
+    // Type character by character with variable speed
+    for (let i = 0; i < text.length; i++) {
+      // Typing speed varies based on character and position
+      let typingDelay;
 
-    for (const word of words) {
-      // Type each character with variable speed
-      for (let i = 0; i < word.length; i++) {
-        const char = word[i];
+      const char = text[i];
 
-        // More sophisticated typing speed variation
-        let typingDelay;
+      // Pauses at punctuation
+      if (".,:;!?".includes(char)) {
+        typingDelay = 100 + Math.random() * 300;
+      }
+      // Faster for common characters
+      else if ("etaoinshrd".includes(char.toLowerCase())) {
+        typingDelay = 40 + Math.random() * 60;
+      }
+      // Normal speed for other characters
+      else {
+        typingDelay = 60 + Math.random() * 80;
+      }
 
-        // Complex words get slower typing
-        const wordComplexity = Math.min(1, word.length / 12);
+      // Occasional typing error and correction (about 5% chance)
+      if (Math.random() < 0.05 && i < text.length - 1) {
+        // Type a wrong character
+        const wrongChar = String.fromCharCode(
+          text.charCodeAt(i) + Math.floor(Math.random() * 5) - 2
+        );
 
-        if (".,:;!?".includes(char)) {
-          typingDelay = 100 + Math.random() * 300;
-        } else if ("etaoinshrd".includes(char.toLowerCase())) {
-          typingDelay = 40 + Math.random() * 60 * (1 + wordComplexity * 0.5);
-        } else {
-          typingDelay = 60 + Math.random() * 80 * (1 + wordComplexity * 0.5);
-        }
-
-        // Occasional typing error and correction (about 5% chance)
-        if (Math.random() < 0.05 && i < word.length - 1) {
-          const wrongChar = String.fromCharCode(
-            word.charCodeAt(i) + Math.floor(Math.random() * 5) - 2
-          );
-          element.value += wrongChar;
-          element.dispatchEvent(new Event("input", { bubbles: true }));
-          await this._microDelay(300 + Math.random() * 400);
-          element.value = element.value.slice(0, -1);
-          element.dispatchEvent(new Event("input", { bubbles: true }));
-          await this._microDelay(200 + Math.random() * 300);
-        }
-
-        // Type the correct character
-        element.value += char;
+        element.value += wrongChar;
         element.dispatchEvent(new Event("input", { bubbles: true }));
-        await this._microDelay(typingDelay);
-      }
 
-      // Add space between words
-      if (position < words.length - 1) {
-        element.value += " ";
+        // Brief pause before correcting
+        await this._microDelay(300 + Math.random() * 400);
+
+        // Delete the wrong character
+        element.value = element.value.slice(0, -1);
         element.dispatchEvent(new Event("input", { bubbles: true }));
-        await this._microDelay(50 + Math.random() * 100);
+
+        // Pause before continuing
+        await this._microDelay(200 + Math.random() * 300);
       }
 
-      position++;
+      // Type the correct character
+      element.value += text[i];
+      element.dispatchEvent(new Event("input", { bubbles: true }));
 
-      // Occasional pause between words (thinking pause)
-      if (Math.random() < 0.15) {
-        await this._microDelay(300 + Math.random() * 700);
-      }
+      await this._microDelay(typingDelay);
     }
 
+    // Pause after finishing typing
     await this._microDelay(500 + Math.random() * 800);
   }
 
+  /**
+   * Safely performs a click with human-like timing and behavior
+   */
   async _safeClick(element) {
     if (!element) return false;
 
     try {
-      // Add safety check for element still being in DOM
-      if (!document.contains(element)) {
-        return false;
-      }
-
+      // Random variation in exactly where the click happens within the element
       await this._moveMouseRealisticly(element);
 
-      // Enhanced human behavior variations
-      if (this.settings.varyClickPatterns) {
-        const behaviorChoice = Math.random();
+      // Sometimes we do a sequence of actions before clicking (human behavior)
+      if (this.settings.varyClickPatterns && Math.random() < 0.3) {
+        // Pause before clicking as if considering
+        await this._delay(300 + Math.random() * 800);
 
-        if (behaviorChoice < 0.3) {
-          // Pause before clicking as if considering
-          await this._delay(300 + Math.random() * 800);
-        } else if (behaviorChoice < 0.5) {
-          // Hover behavior before clicking
+        // Occasional hover behavior before clicking
+        if (Math.random() < 0.4) {
           element.dispatchEvent(
             new MouseEvent("mouseover", {
               bubbles: true,
@@ -345,37 +272,12 @@ class LinkedInAssistant {
               view: window,
             })
           );
+
           await this._delay(200 + Math.random() * 500);
-        } else if (behaviorChoice < 0.6) {
-          // Double hesitation pattern
-          await this._delay(200 + Math.random() * 300);
-          element.dispatchEvent(
-            new MouseEvent("mouseover", {
-              bubbles: true,
-              cancelable: true,
-              view: window,
-            })
-          );
-          await this._delay(150 + Math.random() * 250);
-          element.dispatchEvent(
-            new MouseEvent("mouseout", {
-              bubbles: true,
-              cancelable: true,
-              view: window,
-            })
-          );
-          await this._delay(300 + Math.random() * 400);
-          element.dispatchEvent(
-            new MouseEvent("mouseover", {
-              bubbles: true,
-              cancelable: true,
-              view: window,
-            })
-          );
-          await this._delay(200 + Math.random() * 300);
         }
       }
 
+      // Use a direct click rather than .click() to avoid detection
       const clickEvent = new MouseEvent("click", {
         bubbles: true,
         cancelable: true,
@@ -388,28 +290,39 @@ class LinkedInAssistant {
       this._state.lastActivityTimestamp = Date.now();
       return true;
     } catch (error) {
-      console.log("Click error:", error);
-      return false;
+      console.log(
+        "Interaction issue encountered, retrying with alternative method"
+      );
+
+      // Fallback method
+      try {
+        element.click();
+        this._state.lastActivityTimestamp = Date.now();
+        return true;
+      } catch (e) {
+        return false;
+      }
     }
   }
 
+  /**
+   * Smart selector strategy that uses multiple approaches to find elements
+   */
   _findElement(selectors, parentElement = document) {
+    // Try multiple selectors in order of preference
     if (!Array.isArray(selectors)) {
       selectors = [selectors];
     }
 
-    // Add dynamic selectors based on context
-    const dynamicSelectors = this._generateContextAwareSelectors(parentElement);
-    if (dynamicSelectors.length > 0) {
-      selectors = [...selectors, ...dynamicSelectors];
-    }
-
     for (const selector of selectors) {
       try {
+        // For simple string selectors
         if (typeof selector === "string") {
           const elements = Array.from(parentElement.querySelectorAll(selector));
           if (elements.length > 0) {
+            // Small randomization if multiple elements match
             if (elements.length > 1 && Math.random() < 0.5) {
+              // Occasionally select a different element than the first
               const randomIndex = Math.floor(
                 Math.random() * Math.min(3, elements.length)
               );
@@ -417,53 +330,27 @@ class LinkedInAssistant {
             }
             return elements[0];
           }
-        } else if (typeof selector === "function") {
+        }
+        // For functions that implement custom selection logic
+        else if (typeof selector === "function") {
           const element = selector(parentElement);
           if (element) return element;
         }
-      } catch (e) {}
+      } catch (e) {
+        // Silently continue to next selector on error
+      }
     }
 
     return null;
   }
 
-  _generateContextAwareSelectors(parentElement) {
-    const contextSelectors = [];
-
-    // Learn from successful button clicks
-    if (this._state.patternMemory.size > 0) {
-      for (const [pattern, success] of this._state.patternMemory.entries()) {
-        if (success > 0.7) {
-          contextSelectors.push(pattern);
-        }
-      }
-    }
-
-    // Create selectors based on page content
-    try {
-      const buttonTexts = [
-        "connect",
-        "add contact",
-        "network",
-        "add connection",
-      ];
-      contextSelectors.push((el) => {
-        const buttons = Array.from(parentElement.querySelectorAll("button"));
-        return buttons.find((btn) => {
-          const text = btn.textContent.trim().toLowerCase();
-          return (
-            buttonTexts.some((btnText) => text.includes(btnText)) &&
-            !btn.disabled
-          );
-        });
-      });
-    } catch (e) {}
-
-    return contextSelectors;
-  }
-
+  /**
+   * Find all connect buttons using various strategies
+   */
   _findConnectButtons() {
+    // Multiple strategies to find connect buttons
     const strategies = [
+      // Strategy 1: Default selector
       () =>
         Array.from(
           document.querySelectorAll(".search-results-container button")
@@ -474,12 +361,16 @@ class LinkedInAssistant {
             !btn.closest('[data-live-test="premium-upsell"]')
           );
         }),
+
+      // Strategy 2: Using aria-label
       () =>
         Array.from(
           document.querySelectorAll(
             'button[aria-label*="Connect"], button[aria-label*="connect"]'
           )
         ),
+
+      // Strategy 3: Using data attributes
       () =>
         Array.from(
           document.querySelectorAll(
@@ -488,18 +379,23 @@ class LinkedInAssistant {
         )
           .map((el) => el.closest("button"))
           .filter(Boolean),
+
+      // Strategy 4: Text content with span wrapper
       () => {
         const spans = Array.from(document.querySelectorAll("span")).filter(
           (span) => span.textContent.trim().toLowerCase() === "connect"
         );
         return spans.map((span) => span.closest("button")).filter(Boolean);
       },
+
+      // Strategy 5: Search for connection buttons in search results
       () => {
         const searchResults = document.querySelectorAll(
           ".reusable-search__result-container"
         );
         const buttons = [];
         searchResults.forEach((result) => {
+          // Find buttons within this search result
           const resultButtons = Array.from(
             result.querySelectorAll("button")
           ).filter((btn) => {
@@ -512,52 +408,37 @@ class LinkedInAssistant {
         });
         return buttons;
       },
-      // AI-powered intelligent selector based on page structure analysis
-      () => {
-        const allButtons = Array.from(document.querySelectorAll("button"));
-        return allButtons.filter((btn) => {
-          // Use multiple signals to identify connect buttons
-          const text = btn.textContent.trim().toLowerCase();
-          const hasConnectText = text === "connect";
-          const hasRightSize = btn.offsetWidth > 60 && btn.offsetWidth < 150;
-          const isInSearchResults = Boolean(btn.closest(".search-results"));
-          const isNotMessagingButton = !text.includes("message");
-
-          // Combine signals with weighted scoring
-          let score = 0;
-          if (hasConnectText) score += 5;
-          if (hasRightSize) score += 2;
-          if (isInSearchResults) score += 2;
-          if (isNotMessagingButton) score += 1;
-
-          return score >= 5;
-        });
-      },
     ];
 
+    // Try each strategy until we find buttons
     for (const strategy of strategies) {
       try {
         const buttons = strategy();
         if (buttons.length > 0) {
           return buttons;
         }
-      } catch (e) {}
+      } catch (e) {
+        // Continue to next strategy on error
+      }
     }
 
     return [];
   }
 
+  /**
+   * Gets profile information for personalizing connection notes
+   */
   _gatherProfileInfo() {
     this._state.profileNames = [];
     this._state.profileCompanies = [];
-    this._state.profileIndustries = [];
-    this._state.profileTitles = [];
 
+    // Look for profile names in search results
     const searchResults = document.querySelectorAll(
       ".reusable-search__result-container"
     );
 
     searchResults.forEach((result) => {
+      // Find name
       let name = "";
       const nameEl = this._findElement(
         [
@@ -570,9 +451,10 @@ class LinkedInAssistant {
       );
 
       if (nameEl) {
-        name = nameEl.textContent.trim().split(" ")[0];
+        name = nameEl.textContent.trim().split(" ")[0]; // Get first name
       }
 
+      // Find company
       let company = "";
       const companyEl = this._findElement(
         [
@@ -585,48 +467,33 @@ class LinkedInAssistant {
 
       if (companyEl) {
         const companyText = companyEl.textContent.trim();
+        // Extract company name from text that might contain other info
         const companyMatch = companyText.match(/(?:at|@)\s+([^•]+)/i);
         company = companyMatch
           ? companyMatch[1].trim()
           : companyText.split("•")[0].trim();
       }
 
-      // Industry extraction
-      let industry = "";
-      try {
-        const industryEl = this._findElement(
-          [".entity-result__secondary-subtitle"],
-          result
-        );
-        if (industryEl) {
-          const industryText = industryEl.textContent.trim();
-          industry = industryText.split("•")[0].trim();
-        }
-      } catch (e) {}
-
-      // Job title extraction
-      let title = "";
-      try {
-        if (companyEl) {
-          const titleText = companyEl.textContent.trim();
-          title = titleText.split(" at ")[0].trim();
-        }
-      } catch (e) {}
-
       this._state.profileNames.push(name);
       this._state.profileCompanies.push(company);
-      this._state.profileIndustries.push(industry);
-      this._state.profileTitles.push(title);
     });
   }
 
+  /**
+   * Delay function with human-like variation
+   */
   async _delay(ms) {
-    const variationPercent = 0.2;
+    // Add variation to the delay to appear more human-like
+    const variationPercent = 0.2; // 20% variation
     const variation = ms * variationPercent;
     const actualDelay = ms + (Math.random() * variation * 2 - variation);
+
     return new Promise((resolve) => setTimeout(resolve, actualDelay));
   }
 
+  /**
+   * Natural scrolling with variable speed and occasional pauses
+   */
   async _naturalScroll() {
     const documentHeight = Math.max(
       document.body.scrollHeight,
@@ -636,88 +503,46 @@ class LinkedInAssistant {
       document.documentElement.offsetHeight
     );
 
+    // Don't scroll if there's nothing to scroll
     if (documentHeight <= window.innerHeight) return;
 
     const scrollTarget = documentHeight - window.innerHeight;
     let currentPosition =
       window.pageYOffset || document.documentElement.scrollTop;
 
-    // Enhanced scrolling pattern with variable acceleration
+    // Randomize scroll parameters for natural appearance
     const scrollSegments = 6 + Math.floor(Math.random() * 8);
     const scrollStepBase = scrollTarget / scrollSegments;
 
-    // Realistic scrolling pattern types
-    const scrollPatterns = [
-      // Smooth continuous scrolling
-      async () => {
-        for (let i = 0; i < scrollSegments; i++) {
-          const scrollStep = scrollStepBase * (0.8 + Math.random() * 0.4);
-          const steps = 10 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < scrollSegments; i++) {
+      // Variable scroll step size
+      const scrollStep = scrollStepBase * (0.8 + Math.random() * 0.4);
 
-          for (let j = 0; j < steps; j++) {
-            const progress = j / steps;
-            const ease =
-              progress < 0.5
-                ? 2 * progress * progress
-                : -1 + (4 - 2 * progress) * progress;
-            const moveDist = scrollStep * ease;
-            currentPosition += moveDist;
-            window.scrollTo(0, currentPosition);
-            await this._microDelay(10 + Math.random() * 20);
-          }
+      // Scroll with natural acceleration/deceleration
+      const steps = 10 + Math.floor(Math.random() * 5);
 
-          if (this.settings.randomScrollVariations && Math.random() < 0.4) {
-            await this._delay(500 + Math.random() * 3000);
-          }
-        }
-      },
+      for (let j = 0; j < steps; j++) {
+        // Ease-in/ease-out curve
+        const progress = j / steps;
+        const ease =
+          progress < 0.5
+            ? 2 * progress * progress
+            : -1 + (4 - 2 * progress) * progress;
 
-      // Quick scroll with pauses
-      async () => {
-        for (let i = 0; i < 3; i++) {
-          const scrollAmt = scrollTarget * (0.3 + i * 0.2);
-          window.scrollTo({
-            top: scrollAmt,
-            behavior: "smooth",
-          });
-          await this._delay(1200 + Math.random() * 2000);
-        }
-        // Final scroll
-        window.scrollTo({
-          top: scrollTarget,
-          behavior: "smooth",
-        });
-      },
+        const moveDist = scrollStep * ease;
+        currentPosition += moveDist;
 
-      // Irregular scrolling pattern
-      async () => {
-        let pos = 0;
-        while (pos < scrollTarget) {
-          const jumpSize = Math.min(
-            scrollTarget - pos,
-            300 + Math.floor(Math.random() * 700)
-          );
+        window.scrollTo(0, currentPosition);
+        await this._microDelay(10 + Math.random() * 20);
+      }
 
-          pos += jumpSize;
-          window.scrollTo(0, pos);
+      // Occasional pause while scrolling as if reading content
+      if (this.settings.randomScrollVariations && Math.random() < 0.4) {
+        await this._delay(500 + Math.random() * 3000);
+      }
+    }
 
-          await this._delay(200 + Math.random() * 400);
-
-          // Occasional scroll back up slightly
-          if (Math.random() < 0.2 && pos > jumpSize * 0.5) {
-            const backAmount = Math.floor(jumpSize * 0.2);
-            pos -= backAmount;
-            window.scrollTo(0, pos);
-            await this._delay(500 + Math.random() * 1000);
-          }
-        }
-      },
-    ];
-
-    // Choose a random scroll pattern
-    const patternIndex = Math.floor(Math.random() * scrollPatterns.length);
-    await scrollPatterns[patternIndex]();
-
+    // Return to top with a pause first
     await this._delay(
       this._getRandomDelay(
         this.settings.scrollDelayMin,
@@ -725,36 +550,24 @@ class LinkedInAssistant {
       )
     );
 
+    // Smooth scroll back to top
     window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // Wait for scrolling to complete
     await this._delay(1000 + Math.random() * 500);
   }
 
+  /**
+   * Process connection dialog elements (notes, send buttons)
+   */
   async _processDialogElements() {
-    try {
-      const dialog = this._findElement('div[role="dialog"]');
-      if (!dialog) return;
+    // Find the dialog that should be open now
+    const dialog = this._findElement('div[role="dialog"]');
+    if (!dialog) return;
 
-      // Add timeout protection for dialog processing
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Dialog processing timeout")), 30000)
-      );
-
-      await Promise.race([this._processDialog(dialog), timeoutPromise]);
-    } catch (error) {
-      console.log("Dialog processing error:", error);
-      // Attempt to recover by closing any open dialogs
-      const closeButton = this._findElement([
-        'button[aria-label="Dismiss"]',
-        'button[aria-label="Close"]',
-        'button[aria-label="Cancel"]',
-      ]);
-      if (closeButton) await this._safeClick(closeButton);
-    }
-  }
-
-  // New helper method to handle dialog processing
-  async _processDialog(dialog) {
+    // Check if we need to add a note
     if (this.settings.addPersonalizedNote) {
+      // Find the "Add a note" button if it exists
       const addNoteButton = this._findElement(
         [
           'button[aria-label="Add a note"]',
@@ -770,41 +583,45 @@ class LinkedInAssistant {
       if (addNoteButton) {
         await this._delay(this._getRandomDelay(800, 1600));
         await this._safeClick(addNoteButton);
+
+        // Wait for note textarea to appear
         await this._delay(this._getRandomDelay(800, 1400));
 
+        // Find the textarea for the note
         const textarea = this._findElement(
           ['textarea[name="message"]', "textarea", '[role="textbox"]'],
           dialog
         );
 
         if (textarea) {
+          // Generate personalized note
           const currentIndex = this._state.currentItemIndex;
           const firstName = this._state.profileNames[currentIndex] || "there";
           const company = this._state.profileCompanies[currentIndex] || "";
-          const industry =
-            this._state.profileIndustries[currentIndex] || "professional";
-          const title = this._state.profileTitles[currentIndex] || "";
 
+          // Select a random note template
           const noteTemplateIndex = Math.floor(
             Math.random() * this.settings.connectionNotes.length
           );
           let note = this.settings.connectionNotes[noteTemplateIndex];
 
+          // Personalize the note
           note = note.replace(/{{firstName}}/g, firstName);
           note = note.replace(/{{company}}/g, company);
-          note = note.replace(/{{industry}}/g, industry);
-          note = note.replace(/{{title}}/g, title);
 
+          // Simulate human typing
           await this._simulateTyping(textarea, note);
         }
       }
     }
 
+    // Find the send button - use multiple strategies
     const sendButton = this._findElement(
       [
         'button[aria-label="Send now"]',
         'button[aria-label="Send invitation"]',
         'button[aria-label="Send without a note"]',
+        // Look for buttons with "send" text regardless of case
         (buttonEl) => {
           const text = buttonEl?.textContent?.trim()?.toLowerCase();
           return (
@@ -818,21 +635,13 @@ class LinkedInAssistant {
 
     if (sendButton) {
       await this._delay(this._getRandomDelay(700, 1500));
-      const clickSuccess = await this._safeClick(sendButton);
+      await this._safeClick(sendButton);
+      this.settings.sentConnectionRequests++;
 
-      if (clickSuccess) {
-        this.settings.sentConnectionRequests++;
-        this._state.sessionMetrics.successes++;
-
-        // Update adaptive learning
-        this._updateAdaptiveTimings("interactionDelay", true);
-      } else {
-        this._state.sessionMetrics.failures++;
-        this._updateAdaptiveTimings("interactionDelay", false);
-      }
-
+      // Wait for send confirmation
       await this._delay(this._getRandomDelay(800, 1400));
 
+      // Find and click the dismiss button if it exists
       const dismissButton = this._findElement([
         'button[aria-label="Dismiss"]',
         'button[aria-label="Close"]',
@@ -851,6 +660,7 @@ class LinkedInAssistant {
         await this._delay(this._getRandomDelay(500, 1200));
       }
     } else {
+      // If no send button found, try to close any open dialog to avoid getting stuck
       const closeButton = this._findElement(
         [
           'button[aria-label="Dismiss"]',
@@ -867,35 +677,44 @@ class LinkedInAssistant {
     }
   }
 
+  /**
+   * Process the next profile in the search results
+   */
   async _processNextItem() {
+    // Check if we've reached any limits
     if (this._shouldStopProcessing()) {
       this._finishSession();
       return;
     }
 
+    // If we've processed all items on this page, go to the next page
     if (this._state.currentItemIndex >= this._state.currentPageItems.length) {
       await this._goToNextPage();
       return;
     }
 
+    // Get the current connect button
     const currentButton =
       this._state.currentPageItems[this._state.currentItemIndex];
 
+    // Skip if button doesn't exist or isn't clickable
     if (
       !currentButton ||
       currentButton.disabled ||
       currentButton.getAttribute("aria-disabled") === "true"
     ) {
       this._state.currentItemIndex++;
-      this._state.sessionMetrics.skipped++;
       await this._delay(this._getRandomDelay(500, 1000));
       await this._processNextItem();
       return;
     }
 
-    this._state.sessionMetrics.attempts++;
+    // Click the connect button
     await this._safeClick(currentButton);
 
+    // The mutation observer will detect the dialog and call _processDialogElements
+
+    // Move to next item after a delay
     this._state.currentItemIndex++;
     await this._delay(
       this._getRandomDelay(
@@ -904,23 +723,36 @@ class LinkedInAssistant {
       )
     );
 
+    // Occasionally take a micro-break to appear human-like
     if (this.settings.takeMicroBreaks && Math.random() < 0.15) {
-      const breakTime = 15000 + Math.random() * 30000;
+      const breakTime = 15000 + Math.random() * 30000; // 15-45 second break
+      console.log(
+        `Taking a short break (${Math.round(
+          breakTime / 1000
+        )}s) to appear more human-like`
+      );
       this._state.microBreaksTaken++;
       await this._delay(breakTime);
     }
 
+    // Process the next item
     await this._processNextItem();
   }
 
+  /**
+   * Navigate to the next page of search results
+   */
   async _goToNextPage() {
+    // Find the next page button using various strategies
     const nextButton = this._findElement([
       'button[aria-label="Next"]',
       "button.artdeco-pagination__button--next",
+      // Look for pagination buttons with "next" text
       (buttonEl) => {
         const text = buttonEl?.textContent?.trim()?.toLowerCase();
         return buttonEl?.tagName === "BUTTON" && text === "next";
       },
+      // Look for right arrow in pagination
       (buttonEl) => {
         return (
           buttonEl?.tagName === "BUTTON" &&
@@ -930,18 +762,22 @@ class LinkedInAssistant {
       },
     ]);
 
+    // If there's no next button or it's disabled, we're done
     if (
       !nextButton ||
       nextButton.disabled ||
       nextButton.getAttribute("aria-disabled") === "true"
     ) {
+      console.log("Reached the end of search results");
       this._finishSession();
       return;
     }
 
+    // Click the next button
     await this._safeClick(nextButton);
     this._state.currentPageNumber++;
 
+    // Wait for page transition
     await this._delay(
       this._getRandomDelay(
         this.settings.pageTransitionDelayMin,
@@ -949,81 +785,92 @@ class LinkedInAssistant {
       )
     );
 
+    // Restart process on new page
     await this._initiatePage();
   }
 
+  /**
+   * Check if we should stop processing
+   */
   _shouldStopProcessing() {
+    // Check if we've reached the maximum number of requests
     if (
       this.settings.maxConnectionRequests > 0 &&
       this.settings.sentConnectionRequests >=
         this.settings.maxConnectionRequests
     ) {
+      console.log(
+        `Reached maximum connection requests: ${this.settings.maxConnectionRequests}`
+      );
       return true;
     }
 
+    // Check if the session has been running too long
     if (
       Date.now() - this._state.sessionStartTime >
       this.settings.sessionMaxTime
     ) {
+      console.log(
+        `Session exceeded maximum time of ${
+          this.settings.sessionMaxTime / 60000
+        } minutes`
+      );
       return true;
     }
 
     return false;
   }
 
+  /**
+   * Finish the session and report statistics
+   */
   _finishSession() {
     this._state.operationInProgress = false;
     const sessionDuration = Math.round(
       (Date.now() - this._state.sessionStartTime) / 1000
     );
 
-    // Fix syntax error: Changed "if this.observer" to proper if statement
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = null; // Prevent memory leak
-    }
-
-    // Log session metrics
-    console.log("===== Session Complete =====");
-    console.log(`Requests sent: ${this.settings.sentConnectionRequests}`);
+    console.log("===== LinkedIn Connection Assistant - Session Complete =====");
+    console.log(
+      `Connection requests sent: ${this.settings.sentConnectionRequests}`
+    );
     console.log(`Pages processed: ${this._state.currentPageNumber}`);
     console.log(
-      `Success rate: ${(
-        (this._state.sessionMetrics.successes /
-          this._state.sessionMetrics.attempts) *
-        100
-      ).toFixed(1)}%`
+      `Session duration: ${Math.floor(sessionDuration / 60)}m ${
+        sessionDuration % 60
+      }s`
     );
-    console.log(`Failures: ${this._state.sessionMetrics.failures}`);
-    console.log(`Skipped: ${this._state.sessionMetrics.skipped}`);
-    console.log(
-      `Duration: ${Math.floor(sessionDuration / 60)}m ${sessionDuration % 60}s`
-    );
-  }
+    console.log(`Micro-breaks taken: ${this._state.microBreaksTaken}`);
 
-  _handleError(error) {
-    console.log("An error occurred:", error);
-    this._state.operationInProgress = false;
-
-    // Clean up resources
+    // Dispose of the observer
     if (this.observer) {
       this.observer.disconnect();
-      this.observer = null;
     }
-
-    // Reset state
-    this._state.currentPageItems = [];
-    this._state.currentItemIndex = 0;
-
-    // Update metrics
-    this._state.sessionMetrics.failures++;
   }
 
+  /**
+   * Handle any errors during processing
+   */
+  _handleError(error) {
+    console.log("An error occurred:", error);
+
+    // Reset the operation state
+    this._state.operationInProgress = false;
+
+    // Provide resume capability
+    console.log("You can resume by calling the 'resume' method");
+  }
+
+  /**
+   * Resume the assistant after an error or pause
+   */
   async resume() {
     if (this._state.operationInProgress) {
+      console.log("Operation already in progress");
       return;
     }
 
+    console.log("Resuming LinkedIn Connection Assistant...");
     this._state.operationInProgress = true;
 
     try {
@@ -1033,48 +880,54 @@ class LinkedInAssistant {
     }
   }
 
+  /**
+   * Initialize processing on the current page
+   */
   async _initiatePage() {
-    try {
-      if (!this._state.operationInProgress) return;
+    await this._naturalScroll();
 
-      await this._naturalScroll();
+    // Gather connect buttons on the page
+    this._state.currentPageItems = this._findConnectButtons();
+    this._state.currentItemIndex = 0;
 
-      // Add safety check for page load
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    console.log(
+      `Found ${this._state.currentPageItems.length} potential connections on page ${this._state.currentPageNumber}`
+    );
 
-      const buttons = this._findConnectButtons();
-      if (!Array.isArray(buttons)) {
-        throw new Error("Failed to find connect buttons");
-      }
+    // Gather profile information for personalization
+    this._gatherProfileInfo();
 
-      this._state.currentPageItems = buttons;
-      this._state.currentItemIndex = 0;
-
-      this._gatherProfileInfo();
-
-      if (this._state.currentPageItems.length === 0) {
-        await this._delay(
-          this._getRandomDelay(
-            this.settings.interactionDelayMin,
-            this.settings.interactionDelayMax
-          )
-        );
-        await this._goToNextPage();
-        return;
-      }
-
-      await this._processNextItem();
-    } catch (error) {
-      console.log("Page initiation error:", error);
-      this._handleError(error);
-    }
-  }
-
-  async start() {
-    if (!window.location.href.includes("linkedin.com/search/results/people")) {
+    // If no connect buttons found, try to go to next page
+    if (this._state.currentPageItems.length === 0) {
+      await this._delay(
+        this._getRandomDelay(
+          this.settings.interactionDelayMin,
+          this.settings.interactionDelayMax
+        )
+      );
+      await this._goToNextPage();
       return;
     }
 
+    // Start processing the items
+    await this._processNextItem();
+  }
+
+  /**
+   * Start the LinkedIn Connection Assistant
+   */
+  async start() {
+    // Verify we're on the correct page
+    if (!window.location.href.includes("linkedin.com/search/results/people")) {
+      console.log("Please navigate to LinkedIn's People Search page first");
+      console.log("https://www.linkedin.com/search/results/people");
+      return;
+    }
+
+    console.log("===== LinkedIn Connection Assistant =====");
+    console.log("Starting connection process...");
+
+    // Reset session state
     this._state.sessionStartTime = Date.now();
     this._state.microBreaksTaken = 0;
     this._state.lastActivityTimestamp = Date.now();
@@ -1082,16 +935,24 @@ class LinkedInAssistant {
     this._state.currentPageNumber = 1;
 
     try {
+      // Start processing the current page
       await this._initiatePage();
     } catch (error) {
       this._handleError(error);
     }
   }
 
+  /**
+   * Update settings for the connection assistant
+   */
   updateSettings(newSettings) {
     this.settings = { ...this.settings, ...newSettings };
+    console.log("Settings updated");
   }
 
+  /**
+   * Get current statistics about the session
+   */
   getStats() {
     const sessionDuration = Math.round(
       (Date.now() - this._state.sessionStartTime) / 1000
